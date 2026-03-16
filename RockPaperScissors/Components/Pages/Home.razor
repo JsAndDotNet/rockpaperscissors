@@ -53,8 +53,8 @@
 
 @if (_showModal)
 {
-    <div class="modal-overlay" @onclick="CloseModal">
-        <div class="modal" @onclick:stopPropagation="true">
+    <div class="rps-modal-overlay" @onclick="CloseModal">
+        <div class="rps-modal" @onclick:stopPropagation="true">
             <h3>@(_isCreating ? "Create New Game" : $"Join {_joiningCreator}'s Game")</h3>
             <div class="form-group">
                 <label for="playerNameInput">Your Name</label>
@@ -71,7 +71,7 @@
             {
                 <p class="error-text">@_errorMessage</p>
             }
-            <div class="modal-actions">
+            <div class="rps-modal-actions">
                 <button class="btn-secondary" @onclick="CloseModal">Cancel</button>
                 <button class="btn-primary"
                         @onclick="ConfirmAction"

@@ -183,7 +183,7 @@ html, body {
 .empty-icon { font-size: 3rem; }
 
 /* ── Modal ──────────────────────────────────────────────────────────────── */
-.modal-overlay {
+.rps-modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,.45);
@@ -194,7 +194,8 @@ html, body {
     z-index: 200;
 }
 
-.modal {
+.rps-modal {
+    display: block;
     background: var(--bg-card);
     border-radius: var(--radius);
     padding: 32px;
@@ -209,7 +210,7 @@ html, body {
     to   { transform: translateY(0);    opacity: 1; }
 }
 
-.modal h3 { color: var(--primary); font-size: 1.35rem; margin-bottom: 20px; }
+.rps-modal h3 { color: var(--primary); font-size: 1.35rem; margin-bottom: 20px; }
 
 .form-group { margin-bottom: 20px; }
 .form-group label { display: block; font-weight: 600; margin-bottom: 8px; font-size: .9rem; }
@@ -225,7 +226,7 @@ html, body {
 }
 .form-input:focus { border-color: var(--primary); }
 
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+.rps-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 
 .error-text { color: var(--danger); font-size: .88rem; margin-bottom: 12px; }
 
