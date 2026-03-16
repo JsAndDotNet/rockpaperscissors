@@ -1,0 +1,159 @@
+﻿@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+
+<PageTitle>Rock Paper Scissors – Lobby</PageTitle>
+
+<div class="lobby-container">
+    <div class="lobby-header">
+        <h1>Rock Paper Scissors</h1>
+        <p class="subtitle">Real-time multiplayer · Challenge a friend!</p>
+    </div>
+
+    <div class="lobby-content">
+        <div class="section-header">
+            <h2>Open Games</h2>
+            <button class="btn-primary" @onclick="ShowCreateModal">＋ New Game</button>
+        </div>
+
+        @if (!_connected)
+        {
+            <div class="empty-state">
+                <div class="spinner"></div>
+                <p>Connecting…</p>
+            </div>
+        }
+        else if (_games.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">🎮</div>
+                <p>No games yet — create one and wait for a friend!</p>
+            </div>
+        }
+        else
+        {
+            <div class="games-list">
+                @foreach (var game in _games)
+                {
+                    <div class="game-card">
+                        <div class="game-card-info">
+                            <span class="creator-name">@game.CreatorName</span>
+                            <span class="game-status">Waiting for opponent…</span>
+                        </div>
+                        <button class="btn-join" @onclick="() => ShowJoinModal(game.Id, game.CreatorName)">
+                            Join
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (_showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>@(_isCreating ? "Create New Game" : $"Join {_joiningCreator}'s Game")</h3>
+            <div class="form-group">
+                <label for="playerNameInput">Your Name</label>
+                <input id="playerNameInput"
+                       class="form-input"
+                       @bind="_playerName"
+                       @bind:event="oninput"
+                       @onkeydown="OnNameKeyDown"
+                       placeholder="Enter your name"
+                       maxlength="20"
+                       autofocus />
+            </div>
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <p class="error-text">@_errorMessage</p>
+            }
+            <div class="modal-actions">
+                <button class="btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn-primary"
+                        @onclick="ConfirmAction"
+                        disabled="@(string.IsNullOrWhiteSpace(_playerName))">
+                    @(_isCreating ? "Create" : "Join")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private HubConnection? _hubConnection;
+    private List<GameInfo> _games = new();
+    private bool _connected;
+    private bool _showModal;
+    private bool _isCreating;
+    private string _playerName = "";
+    private string _joiningGameId = "";
+    private string _joiningCreator = "";
+    private string _errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<List<GameInfo>>("LobbyUpdated", games =>
+        {
+            _games = games;
+            InvokeAsync(StateHasChanged);
+        });
+
+        await _hubConnection.StartAsync();
+        _connected = true;
+        await _hubConnection.InvokeAsync("SubscribeToLobby");
+    }
+
+    private void ShowCreateModal()
+    {
+        _playerName = "";
+        _errorMessage = "";
+        _isCreating = true;
+        _showModal = true;
+    }
+
+    private void ShowJoinModal(string gameId, string creatorName)
+    {
+        _playerName = "";
+        _errorMessage = "";
+        _isCreating = false;
+        _joiningGameId = gameId;
+        _joiningCreator = creatorName;
+        _showModal = true;
+    }
+
+    private void CloseModal() => _showModal = false;
+
+    private void ConfirmAction()
+    {
+        if (string.IsNullOrWhiteSpace(_playerName)) return;
+        var name = Uri.EscapeDataString(_playerName.Trim());
+        if (_isCreating)
+            NavigationManager.NavigateTo($"/game/new?name={name}");
+        else
+            NavigationManager.NavigateTo($"/game/{_joiningGameId}?name={name}");
+    }
+
+    private void OnNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            ConfirmAction();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            try { await _hubConnection.InvokeAsync("UnsubscribeFromLobby"); } catch { /* best effort */ }
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}
