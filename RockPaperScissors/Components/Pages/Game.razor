@@ -3,7 +3,7 @@
 @implements IAsyncDisposable
 @inject NavigationManager NavigationManager
 
-<PageTitle>Rock Paper Scissors – Game</PageTitle>
+<PageTitle>Rock Paper Scissors Lizard Spock – Game</PageTitle>
 
 <div class="game-container">
 
@@ -78,7 +78,7 @@
                 }
 
                 <div class="selections-grid">
-                    @foreach (var sel in new[] { "Rock", "Paper", "Scissors" })
+                    @foreach (var sel in new[] { "Rock", "Paper", "Scissors", "Lizard", "Spock" })
                     {
                         var isSelected = _mySelection == sel;
                         var frozen = _phase == GameClientPhase.SelectionFrozen || _mySelectionConfirmed;
@@ -130,6 +130,10 @@
                             <span>🏆 @_result.WinnerName Wins!</span>
                         }
                     </div>
+                    @if (!string.IsNullOrEmpty(_result.ResultDescription))
+                    {
+                        <p class="result-description">@_result.ResultDescription</p>
+                    }
                     <p class="next-round-hint">Next round starting soon…</p>
                 </div>
             }
@@ -343,6 +347,8 @@
         "Rock"     => "🪨",
         "Paper"    => "📄",
         "Scissors" => "✂️",
+        "Lizard"   => "🦎",
+        "Spock"    => "🖖",
         _          => "❓"
     };
 

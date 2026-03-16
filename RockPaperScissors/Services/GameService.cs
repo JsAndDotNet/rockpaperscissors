@@ -74,8 +74,15 @@ public class GameService
         {
             bool p1Wins =
                 (p1.CurrentSelection == Selection.Rock     && p2.CurrentSelection == Selection.Scissors) ||
+                (p1.CurrentSelection == Selection.Rock     && p2.CurrentSelection == Selection.Lizard)   ||
                 (p1.CurrentSelection == Selection.Paper    && p2.CurrentSelection == Selection.Rock)     ||
-                (p1.CurrentSelection == Selection.Scissors && p2.CurrentSelection == Selection.Paper);
+                (p1.CurrentSelection == Selection.Paper    && p2.CurrentSelection == Selection.Spock)    ||
+                (p1.CurrentSelection == Selection.Scissors && p2.CurrentSelection == Selection.Paper)    ||
+                (p1.CurrentSelection == Selection.Scissors && p2.CurrentSelection == Selection.Lizard)   ||
+                (p1.CurrentSelection == Selection.Lizard   && p2.CurrentSelection == Selection.Spock)    ||
+                (p1.CurrentSelection == Selection.Lizard   && p2.CurrentSelection == Selection.Paper)    ||
+                (p1.CurrentSelection == Selection.Spock    && p2.CurrentSelection == Selection.Scissors) ||
+                (p1.CurrentSelection == Selection.Spock    && p2.CurrentSelection == Selection.Rock);
 
             if (p1Wins) { winnerId = p1.Id; winnerName = p1.Name; }
             else        { winnerId = p2.Id; winnerName = p2.Name; }
@@ -90,6 +97,14 @@ public class GameService
             }
         }
 
+        string? resultDescription = null;
+        if (!isDraw && p1.CurrentSelection.HasValue && p2.CurrentSelection.HasValue)
+        {
+            var winner = winnerId == p1.Id ? p1.CurrentSelection.Value : p2.CurrentSelection.Value;
+            var loser  = winnerId == p1.Id ? p2.CurrentSelection.Value : p1.CurrentSelection.Value;
+            resultDescription = GetWinDescription(winner, loser);
+        }
+
         return new RoundResult
         {
             IsDraw = isDraw,
@@ -100,9 +115,25 @@ public class GameService
             Player2Name = p2.Name,
             Player2Selection = p2.CurrentSelection,
             Player1Score = p1.Score,
-            Player2Score = p2.Score
+            Player2Score = p2.Score,
+            ResultDescription = resultDescription
         };
     }
+
+    private static string GetWinDescription(Selection winner, Selection loser) => (winner, loser) switch
+    {
+        (Selection.Rock,     Selection.Scissors) => "Rock crushes Scissors",
+        (Selection.Rock,     Selection.Lizard)   => "Rock crushes Lizard",
+        (Selection.Paper,    Selection.Rock)      => "Paper covers Rock",
+        (Selection.Paper,    Selection.Spock)     => "Paper disproves Spock",
+        (Selection.Scissors, Selection.Paper)     => "Scissors cuts Paper",
+        (Selection.Scissors, Selection.Lizard)    => "Scissors decapitates Lizard",
+        (Selection.Lizard,   Selection.Spock)     => "Lizard poisons Spock",
+        (Selection.Lizard,   Selection.Paper)     => "Lizard eats Paper",
+        (Selection.Spock,    Selection.Scissors)  => "Spock smashes Scissors",
+        (Selection.Spock,    Selection.Rock)      => "Spock vaporizes Rock",
+        _                                         => ""
+    };
 
     public (string? gameId, string? playerName) RemovePlayerByConnection(string connectionId)
     {
