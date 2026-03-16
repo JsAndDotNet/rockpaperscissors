@@ -1,0 +1,354 @@
+@page "/game/{Id}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+
+<PageTitle>Rock Paper Scissors – Game</PageTitle>
+
+<div class="game-container">
+
+    @switch (_phase)
+    {
+        case GameClientPhase.Connecting:
+            <div class="status-screen">
+                <div class="spinner"></div>
+                <p>Connecting…</p>
+            </div>
+            break;
+
+        case GameClientPhase.WaitingForOpponent:
+            <div class="status-screen">
+                <div class="waiting-icon">⏳</div>
+                <h2>Game Created!</h2>
+                <p>Waiting for an opponent to join…</p>
+                <div class="game-link-box">
+                    <p class="game-link-label">Share this game ID with a friend:</p>
+                    <span class="game-id-display">@_gameId</span>
+                </div>
+                <button class="btn-exit" @onclick="ExitGame">Exit</button>
+            </div>
+            break;
+
+        case GameClientPhase.GameReady:
+            <div class="status-screen">
+                <div class="ready-icon">🎮</div>
+                <h2>Game On!</h2>
+                <p class="ready-players">@_player1Name <span class="vs-text">vs</span> @_player2Name</p>
+                <p>Get ready…</p>
+            </div>
+            break;
+
+        case GameClientPhase.SelectionPhase:
+        case GameClientPhase.SelectionFrozen:
+        case GameClientPhase.Countdown:
+        case GameClientPhase.Results:
+
+            <div class="scoreboard">
+                <div class="player-score @(_isPlayer1 ? "my-score" : "")">
+                    <span class="player-name">@_player1Name @(_isPlayer1 ? "(You)" : "")</span>
+                    <span class="score-value">@_player1Score</span>
+                </div>
+                <div class="round-badge">Round @_roundNumber</div>
+                <div class="player-score @(!_isPlayer1 ? "my-score" : "")">
+                    <span class="player-name">@_player2Name @(!_isPlayer1 ? "(You)" : "")</span>
+                    <span class="score-value">@_player2Score</span>
+                </div>
+            </div>
+
+            @if (_phase == GameClientPhase.SelectionPhase || _phase == GameClientPhase.SelectionFrozen)
+            {
+                <div class="timer-section">
+                    <div class="timer-bar-track">
+                        <div class="timer-bar-fill" style="width: @(_timerSeconds * 10)%"></div>
+                    </div>
+                    <span class="timer-seconds">@_timerSeconds</span>
+                </div>
+
+                @if (_mySelectionConfirmed)
+                {
+                    <div class="selection-status confirmed">✓ Selection made – waiting for opponent…</div>
+                }
+                else if (_phase == GameClientPhase.SelectionFrozen)
+                {
+                    <div class="selection-status frozen">Time's up!</div>
+                }
+                else
+                {
+                    <div class="selection-status prompt">Make your selection!</div>
+                }
+
+                <div class="selections-grid">
+                    @foreach (var sel in new[] { "Rock", "Paper", "Scissors" })
+                    {
+                        var isSelected = _mySelection == sel;
+                        var frozen = _phase == GameClientPhase.SelectionFrozen || _mySelectionConfirmed;
+                        var css = "selection-btn"
+                            + (isSelected ? " selected" : "")
+                            + (frozen && !isSelected ? " faded" : "")
+                            + (frozen ? " frozen" : "");
+
+                        <button class="@css"
+                                @onclick="() => MakeSelection(sel)"
+                                disabled="@frozen">
+                            <span class="sel-icon">@GetIcon(sel)</span>
+                            <span class="sel-label">@sel</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (_phase == GameClientPhase.Countdown)
+            {
+                <div class="countdown-display">
+                    <div class="countdown-number @("cd-" + _countdownNumber)">@_countdownNumber</div>
+                </div>
+            }
+
+            @if (_phase == GameClientPhase.Results && _result is not null)
+            {
+                <div class="results-section">
+                    <div class="result-matchup">
+                        <div class="result-player @(_result.WinnerId != null && _result.Player1Name == _result.WinnerName ? "winner-highlight" : "")">
+                            <span class="result-player-name">@_result.Player1Name</span>
+                            <span class="result-sel-icon">@GetIcon(_result.Player1Selection?.ToString())</span>
+                            <span class="result-sel-label">@(_result.Player1Selection?.ToString() ?? "No pick")</span>
+                        </div>
+                        <div class="result-vs-divider">VS</div>
+                        <div class="result-player @(_result.WinnerId != null && _result.Player2Name == _result.WinnerName ? "winner-highlight" : "")">
+                            <span class="result-player-name">@_result.Player2Name</span>
+                            <span class="result-sel-icon">@GetIcon(_result.Player2Selection?.ToString())</span>
+                            <span class="result-sel-label">@(_result.Player2Selection?.ToString() ?? "No pick")</span>
+                        </div>
+                    </div>
+                    <div class="verdict @(_result.IsDraw ? "draw" : "win")">
+                        @if (_result.IsDraw)
+                        {
+                            <span>🤝 It's a Draw!</span>
+                        }
+                        else
+                        {
+                            <span>🏆 @_result.WinnerName Wins!</span>
+                        }
+                    </div>
+                    <p class="next-round-hint">Next round starting soon…</p>
+                </div>
+            }
+
+            <div class="game-footer">
+                <button class="btn-exit" @onclick="ExitGame">Exit Game</button>
+            </div>
+            break;
+
+        case GameClientPhase.OpponentLeft:
+            <div class="status-screen">
+                <div class="left-icon">👋</div>
+                <h2>Game Over</h2>
+                <p>@_opponentLeftMessage</p>
+                <div class="final-scores">
+                    <div class="final-score-row">
+                        <span>@_player1Name</span>
+                        <span class="score-value">@_player1Score</span>
+                    </div>
+                    <div class="final-score-row">
+                        <span>@_player2Name</span>
+                        <span class="score-value">@_player2Score</span>
+                    </div>
+                </div>
+                <button class="btn-primary" @onclick="GoHome">Back to Lobby</button>
+            </div>
+            break;
+
+        case GameClientPhase.Error:
+            <div class="status-screen">
+                <div class="error-icon">⚠️</div>
+                <h2>Oops!</h2>
+                <p>@_errorMessage</p>
+                <button class="btn-primary" @onclick="GoHome">Back to Lobby</button>
+            </div>
+            break;
+    }
+
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [SupplyParameterFromQuery] public string? Name { get; set; }
+
+    private enum GameClientPhase
+    {
+        Connecting,
+        WaitingForOpponent,
+        GameReady,
+        SelectionPhase,
+        SelectionFrozen,
+        Countdown,
+        Results,
+        OpponentLeft,
+        Error
+    }
+
+    private HubConnection? _hubConnection;
+    private GameClientPhase _phase = GameClientPhase.Connecting;
+
+    private string _gameId = "";
+    private string _playerName = "";
+    private bool _isPlayer1;
+
+    private string _player1Name = "";
+    private string _player2Name = "";
+    private int _player1Score;
+    private int _player2Score;
+    private int _roundNumber = 1;
+
+    private int _timerSeconds = 10;
+    private int _countdownNumber;
+    private string? _mySelection;
+    private bool _mySelectionConfirmed;
+
+    private RoundResult? _result;
+    private string _opponentLeftMessage = "";
+    private string _errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _playerName = Name ?? "";
+
+        if (string.IsNullOrWhiteSpace(_playerName))
+        {
+            _errorMessage = "Player name is required. Please go back to the lobby and enter your name.";
+            _phase = GameClientPhase.Error;
+            return;
+        }
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        RegisterHubHandlers();
+
+        await _hubConnection.StartAsync();
+
+        if (Id.Equals("new", StringComparison.OrdinalIgnoreCase))
+        {
+            await _hubConnection.InvokeAsync("CreateGame", _playerName);
+        }
+        else
+        {
+            _gameId = Id;
+            await _hubConnection.InvokeAsync("JoinGame", _gameId, _playerName);
+        }
+    }
+
+    private void RegisterHubHandlers()
+    {
+        _hubConnection!.On<string, string>("GameCreated", (gameId, playerName) =>
+        {
+            _gameId = gameId;
+            _player1Name = playerName;
+            _isPlayer1 = true;
+            _phase = GameClientPhase.WaitingForOpponent;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<string, string, bool>("GameReady", (p1Name, p2Name, isPlayer1) =>
+        {
+            _player1Name = p1Name;
+            _player2Name = p2Name;
+            _isPlayer1 = isPlayer1;
+            _phase = GameClientPhase.GameReady;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<int>("RoundStarted", (roundNumber) =>
+        {
+            _roundNumber = roundNumber;
+            _timerSeconds = 10;
+            _mySelection = null;
+            _mySelectionConfirmed = false;
+            _result = null;
+            _phase = GameClientPhase.SelectionPhase;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<int>("TimerTick", (seconds) =>
+        {
+            _timerSeconds = seconds;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<string>("SelectionConfirmed", (selection) =>
+        {
+            _mySelection = selection;
+            _mySelectionConfirmed = true;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On("SelectionsFrozen", () =>
+        {
+            _phase = GameClientPhase.SelectionFrozen;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<int>("Countdown", (count) =>
+        {
+            _countdownNumber = count;
+            _phase = GameClientPhase.Countdown;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<RoundResult>("RoundResult", (result) =>
+        {
+            _result = result;
+            _player1Score = result.Player1Score;
+            _player2Score = result.Player2Score;
+            _phase = GameClientPhase.Results;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<string>("OpponentLeft", (playerName) =>
+        {
+            _opponentLeftMessage = $"{playerName} has left the game.";
+            _phase = GameClientPhase.OpponentLeft;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection!.On<string>("Error", (message) =>
+        {
+            _errorMessage = message;
+            _phase = GameClientPhase.Error;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task MakeSelection(string selection)
+    {
+        if (_mySelectionConfirmed || _phase != GameClientPhase.SelectionPhase) return;
+        _mySelection = selection;   // optimistic UI update
+        await InvokeAsync(StateHasChanged);
+        await _hubConnection!.InvokeAsync("MakeSelection", _gameId, selection);
+    }
+
+    private async Task ExitGame()
+    {
+        if (!string.IsNullOrEmpty(_gameId) && _hubConnection?.State == HubConnectionState.Connected)
+            await _hubConnection.InvokeAsync("ExitGame", _gameId);
+        GoHome();
+    }
+
+    private void GoHome() => NavigationManager.NavigateTo("/");
+
+    private static string GetIcon(string? selection) => selection switch
+    {
+        "Rock"     => "🪨",
+        "Paper"    => "📄",
+        "Scissors" => "✂️",
+        _          => "❓"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
+    }
+}
