@@ -39,7 +39,7 @@
                     <div class="game-card">
                         <div class="game-card-info">
                             <span class="creator-name">@game.CreatorName</span>
-                            <span class="game-status">Waiting for opponent…</span>
+                            <span class="game-status">@FormatMode(game.Mode) · Waiting for opponent…</span>
                         </div>
                         <button class="btn-join" @onclick="() => ShowJoinModal(game.Id, game.CreatorName)">
                             Join
@@ -55,28 +55,51 @@
 {
     <div class="rps-modal-overlay" @onclick="CloseModal">
         <div class="rps-modal" @onclick:stopPropagation="true">
-            <h3>@(_isCreating ? "Create New Game" : $"Join {_joiningCreator}'s Game")</h3>
-            <div class="form-group">
-                <label for="playerNameInput">Your Name</label>
-                <input id="playerNameInput"
-                       class="form-input"
-                       @bind="_playerName"
-                       @bind:event="oninput"
-                       @onkeydown="OnNameKeyDown"
-                       placeholder="Enter your name"
-                       maxlength="20"
-                       autofocus />
-            </div>
-            @if (!string.IsNullOrEmpty(_errorMessage))
+            <h3>@(_isCreating
+                ? _createStep == 1 ? "Create New Game" : "Choose Game Mode"
+                : $"Join {_joiningCreator}'s Game")</h3>
+
+            @if (_isCreating && _createStep == 2)
             {
-                <p class="error-text">@_errorMessage</p>
+                <div class="mode-choice-grid">
+                    <button class="mode-choice-card @(_selectedMode == GameMode.Classic ? "active" : "")"
+                            @onclick="() => SelectMode(GameMode.Classic)">
+                        <span class="mode-choice-title">Classic</span>
+                        <span class="mode-choice-desc">Rock · Paper · Scissors</span>
+                    </button>
+                    <button class="mode-choice-card @(_selectedMode == GameMode.LizardSpock ? "active" : "")"
+                            @onclick="() => SelectMode(GameMode.LizardSpock)">
+                        <span class="mode-choice-title">Lizard Spock</span>
+                        <span class="mode-choice-desc">Rock · Paper · Scissors · Lizard · Spock</span>
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label for="playerNameInput">Your Name</label>
+                    <input id="playerNameInput"
+                           class="form-input"
+                           @bind="_playerName"
+                           @bind:event="oninput"
+                           @onkeydown="OnNameKeyDown"
+                           placeholder="Enter your name"
+                           maxlength="20"
+                           autofocus />
+                </div>
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <p class="error-text">@_errorMessage</p>
+                }
             }
             <div class="rps-modal-actions">
                 <button class="btn-secondary" @onclick="CloseModal">Cancel</button>
                 <button class="btn-primary"
                         @onclick="ConfirmAction"
-                        disabled="@(string.IsNullOrWhiteSpace(_playerName))">
-                    @(_isCreating ? "Create" : "Join")
+                        disabled="@(_isCreating ? (_createStep == 1 && string.IsNullOrWhiteSpace(_playerName)) : string.IsNullOrWhiteSpace(_playerName))">
+                    @(_isCreating
+                        ? _createStep == 1 ? "Next" : "Create"
+                        : "Join")
                 </button>
             </div>
         </div>
@@ -89,6 +112,8 @@
     private bool _connected;
     private bool _showModal;
     private bool _isCreating;
+    private int _createStep = 1;
+    private GameMode _selectedMode = GameMode.LizardSpock;
     private string _playerName = "";
     private string _joiningGameId = "";
     private string _joiningCreator = "";
@@ -118,6 +143,8 @@
         _errorMessage = "";
         _isCreating = true;
         _showModal = true;
+        _createStep = 1;
+        _selectedMode = GameMode.LizardSpock;
     }
 
     private void ShowJoinModal(string gameId, string creatorName)
@@ -125,21 +152,38 @@
         _playerName = "";
         _errorMessage = "";
         _isCreating = false;
+        _createStep = 1;
         _joiningGameId = gameId;
         _joiningCreator = creatorName;
         _showModal = true;
     }
 
-    private void CloseModal() => _showModal = false;
+    private void CloseModal()
+    {
+        _showModal = false;
+        _createStep = 1;
+    }
 
     private void ConfirmAction()
     {
-        if (string.IsNullOrWhiteSpace(_playerName)) return;
-        var name = Uri.EscapeDataString(_playerName.Trim());
         if (_isCreating)
-            NavigationManager.NavigateTo($"/game/new?name={name}");
-        else
-            NavigationManager.NavigateTo($"/game/{_joiningGameId}?name={name}");
+        {
+            if (_createStep == 1)
+            {
+                if (string.IsNullOrWhiteSpace(_playerName)) return;
+                _createStep = 2;
+                return;
+            }
+
+            var name = Uri.EscapeDataString(_playerName.Trim());
+            var mode = _selectedMode.ToString();
+            NavigationManager.NavigateTo($"/game/new?name={name}&mode={mode}");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_playerName)) return;
+        var joinName = Uri.EscapeDataString(_playerName.Trim());
+        NavigationManager.NavigateTo($"/game/{_joiningGameId}?name={joinName}");
     }
 
     private void OnNameKeyDown(KeyboardEventArgs e)
@@ -156,4 +200,9 @@
             await _hubConnection.DisposeAsync();
         }
     }
+
+    private void SelectMode(GameMode mode) => _selectedMode = mode;
+
+    private static string FormatMode(GameMode mode) =>
+        mode == GameMode.Classic ? "Classic (RPS)" : "Lizard Spock";
 }
