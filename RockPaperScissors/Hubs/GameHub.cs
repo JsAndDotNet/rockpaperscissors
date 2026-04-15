@@ -31,7 +31,7 @@ public class GameHub : Hub
 
     // ── Game lifecycle ─────────────────────────────────────────────────────────
 
-    public async Task CreateGame(string playerName)
+    public async Task CreateGame(string playerName, string gameMode)
     {
         if (string.IsNullOrWhiteSpace(playerName))
         {
@@ -39,9 +39,12 @@ public class GameHub : Hub
             return;
         }
 
-        var game = _gameService.CreateGame(playerName.Trim(), Context.ConnectionId);
+        if (!Enum.TryParse<GameMode>(gameMode, true, out var mode))
+            mode = GameMode.LizardSpock;
+
+        var game = _gameService.CreateGame(playerName.Trim(), Context.ConnectionId, mode);
         await Groups.AddToGroupAsync(Context.ConnectionId, game.Id);
-        await Clients.Caller.SendAsync("GameCreated", game.Id, playerName.Trim());
+        await Clients.Caller.SendAsync("GameCreated", game.Id, playerName.Trim(), game.Mode.ToString());
 
         await BroadcastLobbyUpdate();
     }
@@ -65,9 +68,9 @@ public class GameHub : Hub
 
         // Notify player 1 they are player 1; player 2 they are player 2
         await Clients.Client(game.Player1.ConnectionId)
-            .SendAsync("GameReady", game.Player1.Name, game.Player2!.Name, true);
+            .SendAsync("GameReady", game.Player1.Name, game.Player2!.Name, true, game.Mode.ToString());
         await Clients.Client(game.Player2.ConnectionId)
-            .SendAsync("GameReady", game.Player1.Name, game.Player2.Name, false);
+            .SendAsync("GameReady", game.Player1.Name, game.Player2.Name, false, game.Mode.ToString());
 
         await BroadcastLobbyUpdate();
         _gameManager.StartRound(game.Id);
@@ -83,7 +86,13 @@ public class GameHub : Hub
             return;
         }
 
-        bool bothSelected = _gameService.MakeSelection(gameId, Context.ConnectionId, selection);
+        var (applied, bothSelected) = _gameService.MakeSelection(gameId, Context.ConnectionId, selection);
+        if (!applied)
+        {
+            await Clients.Caller.SendAsync("Error", "Selection not allowed in this game.");
+            return;
+        }
+
         await Clients.Caller.SendAsync("SelectionConfirmed", selectionStr);
 
         if (bothSelected)

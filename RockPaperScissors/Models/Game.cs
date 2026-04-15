@@ -5,6 +5,7 @@ public class Game
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public Player Player1 { get; set; } = new();
     public Player? Player2 { get; set; }
+    public GameMode Mode { get; set; } = GameMode.LizardSpock;
     public GamePhase Phase { get; set; } = GamePhase.WaitingForPlayer;
     public int RoundNumber { get; set; } = 1;
     public CancellationTokenSource? RoundCts { get; set; }
@@ -27,6 +28,7 @@ public class Game
     {
         Id = Id,
         CreatorName = Player1.Name,
-        CreatedAt = CreatedAt
+        CreatedAt = CreatedAt,
+        Mode = Mode
     };
 }
