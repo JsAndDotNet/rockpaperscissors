@@ -6,11 +6,25 @@ namespace RockPaperScissors.Services;
 public class GameService
 {
     private readonly ConcurrentDictionary<string, Game> _games = new();
+    private static readonly HashSet<Selection> ClassicSelections = new()
+    {
+        Selection.Rock,
+        Selection.Paper,
+        Selection.Scissors
+    };
+    private static readonly HashSet<Selection> LizardSpockSelections = new()
+    {
+        Selection.Rock,
+        Selection.Paper,
+        Selection.Scissors,
+        Selection.Lizard,
+        Selection.Spock
+    };
 
-    public Game CreateGame(string playerName, string connectionId)
+    public Game CreateGame(string playerName, string connectionId, GameMode mode)
     {
         var player = new Player { Name = playerName, ConnectionId = connectionId };
-        var game = new Game { Player1 = player };
+        var game = new Game { Player1 = player, Mode = mode };
         _games[game.Id] = game;
         return game;
     }
@@ -27,19 +41,20 @@ public class GameService
         return game;
     }
 
-    public bool MakeSelection(string gameId, string connectionId, Selection selection)
+    public (bool applied, bool bothSelected) MakeSelection(string gameId, string connectionId, Selection selection)
     {
-        if (!_games.TryGetValue(gameId, out var game)) return false;
+        if (!_games.TryGetValue(gameId, out var game)) return (false, false);
         lock (game)
         {
-            if (game.Phase != GamePhase.SelectionPhase) return false;
+            if (game.Phase != GamePhase.SelectionPhase) return (false, false);
+            if (!GetAllowedSelections(game.Mode).Contains(selection)) return (false, false);
             if (game.Player1.ConnectionId == connectionId)
                 game.Player1.CurrentSelection = selection;
             else if (game.Player2?.ConnectionId == connectionId)
                 game.Player2.CurrentSelection = selection;
             else
-                return false;
-            return game.BothSelected;
+                return (false, false);
+            return (true, game.BothSelected);
         }
     }
 
@@ -72,10 +87,11 @@ public class GameService
         }
         else
         {
-            bool p1Wins =
-                (p1.CurrentSelection == Selection.Rock     && p2.CurrentSelection == Selection.Scissors) ||
-                (p1.CurrentSelection == Selection.Paper    && p2.CurrentSelection == Selection.Rock)     ||
-                (p1.CurrentSelection == Selection.Scissors && p2.CurrentSelection == Selection.Paper);
+            bool p1Wins = game.Mode switch
+            {
+                GameMode.Classic => P1WinsClassic(p1.CurrentSelection.Value, p2.CurrentSelection.Value),
+                _ => P1WinsLizardSpock(p1.CurrentSelection.Value, p2.CurrentSelection.Value)
+            };
 
             if (p1Wins) { winnerId = p1.Id; winnerName = p1.Name; }
             else        { winnerId = p2.Id; winnerName = p2.Name; }
@@ -90,6 +106,14 @@ public class GameService
             }
         }
 
+        string? resultDescription = null;
+        if (!isDraw && p1.CurrentSelection.HasValue && p2.CurrentSelection.HasValue)
+        {
+            var winner = winnerId == p1.Id ? p1.CurrentSelection.Value : p2.CurrentSelection.Value;
+            var loser  = winnerId == p1.Id ? p2.CurrentSelection.Value : p1.CurrentSelection.Value;
+            resultDescription = GetWinDescription(winner, loser);
+        }
+
         return new RoundResult
         {
             IsDraw = isDraw,
@@ -100,9 +124,25 @@ public class GameService
             Player2Name = p2.Name,
             Player2Selection = p2.CurrentSelection,
             Player1Score = p1.Score,
-            Player2Score = p2.Score
+            Player2Score = p2.Score,
+            ResultDescription = resultDescription
         };
     }
+
+    private static string GetWinDescription(Selection winner, Selection loser) => (winner, loser) switch
+    {
+        (Selection.Rock,     Selection.Scissors) => "Rock crushes Scissors",
+        (Selection.Rock,     Selection.Lizard)   => "Rock crushes Lizard",
+        (Selection.Paper,    Selection.Rock)      => "Paper covers Rock",
+        (Selection.Paper,    Selection.Spock)     => "Paper disproves Spock",
+        (Selection.Scissors, Selection.Paper)     => "Scissors cuts Paper",
+        (Selection.Scissors, Selection.Lizard)    => "Scissors decapitates Lizard",
+        (Selection.Lizard,   Selection.Spock)     => "Lizard poisons Spock",
+        (Selection.Lizard,   Selection.Paper)     => "Lizard eats Paper",
+        (Selection.Spock,    Selection.Scissors)  => "Spock smashes Scissors",
+        (Selection.Spock,    Selection.Rock)      => "Spock vaporizes Rock",
+        _                                         => ""
+    };
 
     public (string? gameId, string? playerName) RemovePlayerByConnection(string connectionId)
     {
@@ -138,4 +178,24 @@ public class GameService
             .OrderByDescending(g => g.CreatedAt)
             .Select(g => g.ToGameInfo())
             .ToList();
+
+    private static HashSet<Selection> GetAllowedSelections(GameMode mode) =>
+        mode == GameMode.Classic ? ClassicSelections : LizardSpockSelections;
+
+    private static bool P1WinsClassic(Selection p1, Selection p2) =>
+        (p1 == Selection.Rock     && p2 == Selection.Scissors) ||
+        (p1 == Selection.Paper    && p2 == Selection.Rock)     ||
+        (p1 == Selection.Scissors && p2 == Selection.Paper);
+
+    private static bool P1WinsLizardSpock(Selection p1, Selection p2) =>
+        (p1 == Selection.Rock     && p2 == Selection.Scissors) ||
+        (p1 == Selection.Rock     && p2 == Selection.Lizard)   ||
+        (p1 == Selection.Paper    && p2 == Selection.Rock)     ||
+        (p1 == Selection.Paper    && p2 == Selection.Spock)    ||
+        (p1 == Selection.Scissors && p2 == Selection.Paper)    ||
+        (p1 == Selection.Scissors && p2 == Selection.Lizard)   ||
+        (p1 == Selection.Lizard   && p2 == Selection.Spock)    ||
+        (p1 == Selection.Lizard   && p2 == Selection.Paper)    ||
+        (p1 == Selection.Spock    && p2 == Selection.Scissors) ||
+        (p1 == Selection.Spock    && p2 == Selection.Rock);
 }

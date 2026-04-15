@@ -230,6 +230,30 @@ html, body {
 
 .error-text { color: var(--danger); font-size: .88rem; margin-bottom: 12px; }
 
+.mode-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.mode-choice-card {
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--bg-card);
+    cursor: pointer;
+    text-align: left;
+    box-shadow: var(--shadow);
+    transition: border-color .18s, box-shadow .18s, transform .15s, background .18s;
+}
+
+.mode-choice-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.mode-choice-card.active { border-color: var(--primary); background: var(--primary-pale); box-shadow: 0 8px 28px rgba(26,86,219,.2); }
+
+.mode-choice-title { font-weight: 800; font-size: 1rem; color: var(--primary); }
+.mode-choice-desc { display: block; margin-top: 6px; color: var(--text-muted); font-weight: 600; font-size: .9rem; }
+
 /* ── Game Container ─────────────────────────────────────────────────────── */
 .game-container {
     max-width: 860px;
@@ -307,6 +331,22 @@ html, body {
     font-weight: 700;
 }
 
+.mode-pill {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--primary-pale);
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+.mode-pill::before { content: "🎮"; }
+
 /* ── Timer ──────────────────────────────────────────────────────────────── */
 .timer-section {
     display: flex;
@@ -352,10 +392,11 @@ html, body {
 /* ── Selection Buttons ──────────────────────────────────────────────────── */
 .selections-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
     margin-bottom: 28px;
 }
+.selections-grid.three-wide { grid-template-columns: repeat(3, 1fr); }
 
 .selection-btn {
     display: flex;
@@ -364,11 +405,11 @@ html, body {
     background: var(--bg-card);
     border: 3px solid var(--border);
     border-radius: 20px;
-    padding: 28px 16px 20px;
+    padding: 20px 8px 16px;
     cursor: pointer;
     transition: border-color .18s, transform .2s, box-shadow .2s, background .18s;
     box-shadow: var(--shadow);
-    gap: 12px;
+    gap: 10px;
     user-select: none;
 }
 
@@ -487,6 +528,14 @@ html, body {
 
 .next-round-hint { color: var(--text-muted); font-size: .9rem; }
 
+.result-description {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
 /* ── Game Footer ────────────────────────────────────────────────────────── */
 .game-footer {
     margin-top: auto;
@@ -546,9 +595,10 @@ html, body {
 @media (max-width: 600px) {
     .scoreboard { padding: 14px 16px; }
     .score-value { font-size: 2rem; }
-    .sel-icon { font-size: 3rem; }
-    .selections-grid { gap: 10px; }
-    .selection-btn { padding: 20px 10px 16px; }
+    .sel-icon { font-size: 2rem; }
+    .sel-label { font-size: .75rem; }
+    .selections-grid { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px; }
+    .selection-btn { padding: 12px 4px 10px; border-radius: 14px; }
     .countdown-number { font-size: 7rem; }
     .lobby-header h1 { font-size: 1.8rem; }
 }

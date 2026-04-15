@@ -55,6 +55,8 @@
                 </div>
             </div>
 
+            <div class="mode-pill">Mode: @GetModeLabel()</div>
+
             @if (_phase == GameClientPhase.SelectionPhase || _phase == GameClientPhase.SelectionFrozen)
             {
                 <div class="timer-section">
@@ -77,8 +79,8 @@
                     <div class="selection-status prompt">Make your selection!</div>
                 }
 
-                <div class="selections-grid">
-                    @foreach (var sel in new[] { "Rock", "Paper", "Scissors" })
+                <div class="selections-grid @(_gameMode == GameMode.Classic ? "three-wide" : "")">
+                    @foreach (var sel in GetSelectionOptions())
                     {
                         var isSelected = _mySelection == sel;
                         var frozen = _phase == GameClientPhase.SelectionFrozen || _mySelectionConfirmed;
@@ -130,6 +132,10 @@
                             <span>🏆 @_result.WinnerName Wins!</span>
                         }
                     </div>
+                    @if (!string.IsNullOrEmpty(_result.ResultDescription))
+                    {
+                        <p class="result-description">@_result.ResultDescription</p>
+                    }
                     <p class="next-round-hint">Next round starting soon…</p>
                 </div>
             }
@@ -173,6 +179,7 @@
 @code {
     [Parameter] public string Id { get; set; } = "";
     [SupplyParameterFromQuery] public string? Name { get; set; }
+    [SupplyParameterFromQuery] public string? Mode { get; set; }
 
     private enum GameClientPhase
     {
@@ -192,6 +199,7 @@
 
     private string _gameId = "";
     private string _playerName = "";
+    private GameMode _gameMode = GameMode.LizardSpock;
     private bool _isPlayer1;
 
     private string _player1Name = "";
@@ -208,10 +216,13 @@
     private RoundResult? _result;
     private string _opponentLeftMessage = "";
     private string _errorMessage = "";
+    private static readonly string[] ClassicSelections = { "Rock", "Paper", "Scissors" };
+    private static readonly string[] LizardSpockSelections = { "Rock", "Paper", "Scissors", "Lizard", "Spock" };
 
     protected override async Task OnInitializedAsync()
     {
         _playerName = Name ?? "";
+        _gameMode = ParseGameMode(Mode);
 
         if (string.IsNullOrWhiteSpace(_playerName))
         {
@@ -231,7 +242,7 @@
 
         if (Id.Equals("new", StringComparison.OrdinalIgnoreCase))
         {
-            await _hubConnection.InvokeAsync("CreateGame", _playerName);
+            await _hubConnection.InvokeAsync("CreateGame", _playerName, _gameMode.ToString());
         }
         else
         {
@@ -242,20 +253,22 @@
 
     private void RegisterHubHandlers()
     {
-        _hubConnection!.On<string, string>("GameCreated", (gameId, playerName) =>
+        _hubConnection!.On<string, string, string>("GameCreated", (gameId, playerName, modeStr) =>
         {
             _gameId = gameId;
             _player1Name = playerName;
+            _gameMode = ParseGameMode(modeStr);
             _isPlayer1 = true;
             _phase = GameClientPhase.WaitingForOpponent;
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection!.On<string, string, bool>("GameReady", (p1Name, p2Name, isPlayer1) =>
+        _hubConnection!.On<string, string, bool, string>("GameReady", (p1Name, p2Name, isPlayer1, modeStr) =>
         {
             _player1Name = p1Name;
             _player2Name = p2Name;
             _isPlayer1 = isPlayer1;
+            _gameMode = ParseGameMode(modeStr);
             _phase = GameClientPhase.GameReady;
             InvokeAsync(StateHasChanged);
         });
@@ -338,11 +351,23 @@
 
     private void GoHome() => NavigationManager.NavigateTo("/");
 
+    private IReadOnlyList<string> GetSelectionOptions() =>
+        _gameMode == GameMode.Classic ? ClassicSelections : LizardSpockSelections;
+
+    private static GameMode ParseGameMode(string? mode) =>
+        Enum.TryParse<GameMode>(mode, true, out var parsed) ? parsed : GameMode.LizardSpock;
+
+    private string GetModeLabel() => _gameMode == GameMode.Classic
+        ? "Classic (Rock · Paper · Scissors)"
+        : "Lizard Spock (Rock · Paper · Scissors · Lizard · Spock)";
+
     private static string GetIcon(string? selection) => selection switch
     {
         "Rock"     => "🪨",
         "Paper"    => "📄",
         "Scissors" => "✂️",
+        "Lizard"   => "🦎",
+        "Spock"    => "🖖",
         _          => "❓"
     };
 

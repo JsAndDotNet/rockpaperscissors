@@ -11,4 +11,5 @@ public class RoundResult
     public Selection? Player2Selection { get; set; }
     public int Player1Score { get; set; }
     public int Player2Score { get; set; }
+    public string? ResultDescription { get; set; }
 }

@@ -4,5 +4,7 @@ public enum Selection
 {
     Rock,
     Paper,
-    Scissors
+    Scissors,
+    Lizard,
+    Spock
 }
